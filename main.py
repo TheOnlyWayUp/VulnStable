@@ -33,19 +33,29 @@ def factorialcalc(n):
   else:
     return n * factorialcalc(n - 1)
 #Gets the UUID of a user through their ign
-def returnName(uuid=None):
+async def returnName(uuid=None):
   try:
-    return requests.get(f"https://api.mojang.com/user/profile/{uuid}").json()["name"]
+    async with aiohttp.ClientSession() as session:
+      async with session.get(f"https://api.mojang.com/user/profile/{uuid}") as resp:
+        x= await resp.json()
+        return x["name"]
+      session.close
   except:
     return "`Name not found`"
-def returnUUID(ign=None):
+
+async def returnUUID(ign=None):
   try:
-    return requests.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}").json()["id"]
+    async with aiohttp.ClientSession() as session:
+      async with session.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}") as resp:
+        x= await resp.json()
+        return x["id"]
   except:
     return "`UUID not found`"
-def returnExistence(ign=None):
+async def returnExistence(ign=None):
   try:
-    x = requests.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}").json()["id"]
+    async with aiohttp.ClientSession() as session:
+       async with session.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}") as resp:
+         x = await resp.json()
     return True
   except:
     return False
@@ -58,21 +68,27 @@ def stcheck(ctx):
     else:
       return False
 #Returns last login
-def returnLast(uuid:int):
-  last = requests.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}').json()["player"]["lastLogin"]
+async def returnLast(uuid:int):
+  async with aiohttp.ClientSession() as session:
+    async with session.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}') as resp:
+      x = await resp.json()
+      last = x.json()["player"]["lastLogin"]
   return datetime.datetime.utcfromtimestamp(int(last)/1000).strftime('%d')
 #Returns the Discord of a user
-def returnDiscord(ign=None):
+async def returnDiscord(ign=None):
   try:
     uuid = returnUUID(ign)
     return str(requests.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
   except:
     return 404
 #Checks if a user is in the guild
-def returnMS(ign=None):
+async def returnMS(ign=None):
   uuid = returnUUID(ign)
   try:
-    members = requests.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2').json()["guild"]["members"]
+    async with aiohttp.ClientSession() as session:
+      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
+        x = await resp.json()
+        members = x.json()["guild"]["members"]
     for member in members:
       if member["uuid"] == uuid:
       	 return True
@@ -81,10 +97,13 @@ def returnMS(ign=None):
   except:
     return False
 #Returns the rank of a user
-def returnRank(ign=None):
+async def returnRank(ign=None):
   if returnMS(ign) is True:
-    uuid = returnUUID(ign)
-    members = requests.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2').json()["guild"]["members"]
+    uuid = await returnUUID(ign)
+    async with aiohttp.ClientSession() as session:
+      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
+        x = await resp.json()
+        members = x.json()["guild"]["members"]
     for member in members:
       if member["uuid"] == uuid:
         return str(member["rank"])
@@ -142,9 +161,9 @@ async def rank(ctx, user=None):
   if user is None:
     await ctx.send("Correct usage - `v!rank <MC_Username>`.")
   else:
-    if returnMS(user) is True and returnExistence(user) is True:
-      rank = returnRank(user)
-      rankget(ctx.author, rank, user)
+    if await returnMS(user) is True and await returnExistence(user) is True:
+      rank = await returnRank(user)
+      rankget(ctx.author, rank, user) #this is some cheap embed btw
       await ctx.send(embed=embedRank)
     elif returnMS(user) == 404:
       await ctx.send("User not in guild!")
@@ -161,7 +180,7 @@ async def getDiscord(ctx, user=None):
   else:
     if returnExistence(user) is True:
       try:
-        disc = returnDiscord(user)
+        disc = await returnDiscord(user)
         discordEmbed(ctx.author, user, disc)
         await ctx.send(embed=embedDiscordSuccess)
       except:
@@ -190,10 +209,10 @@ async def staffCheck(ctx):
 async def pair(ctx, user=None):
   if returnExistence(user) is True:
     dcRole = discord.utils.get(ctx.guild.roles, name="Discord Member")
-    disc = returnDiscord(user)
+    disc = await returnDiscord(user)
     pairing(user, disc, ctx.author)
     ranks = ["Vulnerable","Active-Vuln","InVulnerable","Helpers"]
-    rank = returnRank(user)
+    rank = await returnRank(user)
     roles=[
   discord.utils.get(ctx.guild.roles, name="Guild member"),
   discord.utils.get(ctx.guild.roles, name="Active Guild Member"),
@@ -290,8 +309,8 @@ async def meme(ctx):
 @bot.command()
 async def forcepair(ctx, member: discord.Member,user=None):
   if stcheck(ctx) is True:
-    disc = returnDiscord(user)
-    rank = returnRank(user)
+    disc = await returnDiscord(user)
+    rank = await returnRank(user)
     pairing(user, disc, ctx.author)
     ranks = ["Vulnerable","Active-Vuln","InVulnerable","Helpers","UnVulnerable"]
     roles=[
@@ -467,7 +486,10 @@ async def printnerds(ctx, level:int=20, afk:int=2, xp:int=21000):
   if stcheck(ctx) is True:
     await ctx.reply("Processing...")
     current_time = datetime.datetime.now() 
-    members = requests.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2').json()["guild"]["members"]
+    async with aiohttp.ClientSession() as session:
+      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
+        x = resp.json()
+        members = x["guild"]["members"]
     nerdl = commands.Paginator()
     for member in members:
       trash = False
