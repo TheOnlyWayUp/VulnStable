@@ -3,7 +3,8 @@ import requests, discord, os, asyncio, prsaw2, shutil, datetime, random, aiohttp
 from discord_interactive import Page, Help
 from PIL import Image, ImageFont, ImageDraw
 import imgfunctions as functions
-from replit import db
+from replit.database import AsyncDatabase 
+import os
 from discord.ext import commands #Import stuff to make making commands easier
 from discord.ext.commands import CommandNotFound, MissingPermissions
 intents = discord.Intents.default()
@@ -13,8 +14,11 @@ bot = commands.Bot(commands.when_mentioned_or("v!","V!","vuln!","Vuln!"),intents
 bot.remove_command("help")
 bot.remove_command("restart")
 bot.remove_command("ping")
+dburl=os.environ["REPLIT_DB_URL"]
+db = AsyncDatabase(dburl)
 #Main Functions
 #Hug function
+#db = {"blacklist":{}, "triggers":{}}
 huglist = ["https://media1.tenor.com/images/8af307989eb713d2f3817f0e2fd1676d/tenor.gif","https://media1.tenor.com/images/579fdfefae8935a61b6e9614b16cfb3d/tenor.gif","https://media.tenor.com/images/7fb2191b81067c1ca30364ad49f8ae32/tenor.gif","https://media.tenor.com/images/07c1ce46716afd965e274cf927c52310/tenor.gif","https://media.tenor.com/images/882621bff72f582fa9d2a07c85d28776/tenor.gif"]
 def hugfunc(ctx, name):
   embedHug = discord.Embed(title=f"{ctx.author.display_name} hugged {name}!", color=0xD53EB6)
@@ -60,8 +64,8 @@ async def returnExistence(ign=None):
   except:
     return False
 #Return staff status of a user
-def stcheck(ctx):
-    role = discord.utils.find(lambda r: r.name == db["staffRole"], ctx.message.guild.roles)
+async def stcheck(ctx):
+    role = discord.utils.get(ctx.guild.members, name=await db.get("staffRole"))
     roleasd = discord.utils.find(lambda r: r.name == "God Father", ctx.message.guild.roles)
     if role in ctx.author.roles or str(ctx.author.id) == str(ctx.guild.owner.id) or roleasd in ctx.author.roles or ctx.author.guild_permissions.administrator is True or str(ctx.author.id) == str(562175882412687361):
       return True
@@ -72,23 +76,23 @@ async def returnLast(uuid:int):
   async with aiohttp.ClientSession() as session:
     async with session.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}') as resp:
       x = await resp.json()
-      last = x.json()["player"]["lastLogin"]
+      last = x["player"]["lastLogin"]
   return datetime.datetime.utcfromtimestamp(int(last)/1000).strftime('%d')
 #Returns the Discord of a user
 async def returnDiscord(ign=None):
   try:
-    uuid = returnUUID(ign)
+    uuid = await returnUUID(ign)
     return str(requests.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
   except:
     return 404
 #Checks if a user is in the guild
 async def returnMS(ign=None):
-  uuid = returnUUID(ign)
+  uuid = await returnUUID(ign)
   try:
     async with aiohttp.ClientSession() as session:
       async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
         x = await resp.json()
-        members = x.json()["guild"]["members"]
+        members = x["guild"]["members"]
     for member in members:
       if member["uuid"] == uuid:
       	 return True
@@ -98,15 +102,14 @@ async def returnMS(ign=None):
     return False
 #Returns the rank of a user
 async def returnRank(ign=None):
-  if returnMS(ign) is True:
-    uuid = await returnUUID(ign)
-    async with aiohttp.ClientSession() as session:
-      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
-        x = await resp.json()
-        members = x.json()["guild"]["members"]
-    for member in members:
-      if member["uuid"] == uuid:
-        return str(member["rank"])
+     async with aiohttp.ClientSession() as session:
+             async with session.get("https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2") as resp:
+                     x = await resp.json()
+                     y = x["guild"]["members"]
+                     for user in y:
+                         #user = dict(user)
+                         if user["uuid"] == await returnUUID(ign):
+                             return user["rank"]
 
 #Embeds
 helpMain = Page("**VULN**\n\nWelcome to Vuln, this is its bot. You can click on the emojis below to navigate the help page :)")
@@ -158,27 +161,28 @@ async def help(ctx):
 #Gets the rank of a user.
 @bot.command()
 async def rank(ctx, user=None):
+  rank = await returnRank(user)
   if user is None:
     await ctx.send("Correct usage - `v!rank <MC_Username>`.")
   else:
-    if await returnMS(user) is True and await returnExistence(user) is True:
-      rank = await returnRank(user)
+    ms = await returnMS(user)
+    if ms is True and await returnExistence(user) is True:
       rankget(ctx.author, rank, user) #this is some cheap embed btw
       await ctx.send(embed=embedRank)
-    elif returnMS(user) == 404:
+    elif ms == "404" or ms is False or rank is None:
       await ctx.send("User not in guild!")
-    elif returnExistence(user) is False:
+    elif await returnExistence(user) is False:
       await ctx.send("Incorrect username!")
     else:
       await ctx.send("There was an error, this was reported to the developer.")
-      print(f"There was an error getting {user}'s rank.")
+      print(f"There was an error getting {user}'s rank. {rank}")
 #Return a user's discord
 @bot.command()
 async def getDiscord(ctx, user=None):
   if user is None:
     await ctx.send("Correct usage - `v!discord <MC_Username>`.")
   else:
-    if returnExistence(user) is True:
+    if await returnExistence(user) is True:
       try:
         disc = await returnDiscord(user)
         discordEmbed(ctx.author, user, disc)
@@ -191,14 +195,14 @@ async def getDiscord(ctx, user=None):
 #restart command
 @bot.command()
 async def restart(ctx):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     await ctx.send("Restarting")
     os.system('python3 startup.py')
     exit()
 #Staff check command
 @bot.command()
 async def staffCheck(ctx):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     staff(ctx.author)
     await ctx.send(embed=embedStaffSuccess)
   else:
@@ -207,7 +211,7 @@ async def staffCheck(ctx):
 #Pair command
 @bot.command()
 async def pair(ctx, user=None):
-  if returnExistence(user) is True:
+  if await returnExistence(user) is True:
     dcRole = discord.utils.get(ctx.guild.roles, name="Discord Member")
     disc = await returnDiscord(user)
     pairing(user, disc, ctx.author)
@@ -269,24 +273,24 @@ async def hug(ctx, member: discord.Member=None, nick=None):
 @bot.command()
 async def nickReset(ctx, change=3, nock=None):
   print(stcheck(ctx))
-  if change == 0 and stcheck(ctx) is True:
+  if change == 0 and await stcheck(ctx) is True:
     await ctx.send("Resetting all nicknames...")
     for user in ctx.guild.members:
       try:
         await user.edit(nick=None, reason=f"nickReset {change} {nock} by {ctx.author}")
       except:
         continue
-  elif change == 1 and stcheck(ctx) is True:
+  elif change == 1 and await stcheck(ctx) is True:
     await ctx.send(f"Setting all nicknames to {nock}.")
     for user in ctx.guild.members:
       try:
         await user.edit(nick=nock, reason=f"nickReset {change} {nock} by {ctx.author}")
       except:
         continue
-  elif change == 2 and stcheck(ctx) is True:
+  elif change == 2 and await stcheck(ctx) is True:
     await ctx.send("Resetting unpaired user's nicknames")
     for user in ctx.guild.members:
-      if returnExistence(user.display_name) is False and stcheck(ctx) is True:
+      if await returnExistence(user.display_name) is False and await stcheck(ctx) is True:
         try:
           await user.edit(nick=None, reason=f"nickReset {change} {nock} by {ctx.author}")
         except:
@@ -308,7 +312,7 @@ async def meme(ctx):
   await ctx.send(embed=membed)
 @bot.command()
 async def forcepair(ctx, member: discord.Member,user=None):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     disc = await returnDiscord(user)
     rank = await returnRank(user)
     pairing(user, disc, ctx.author)
@@ -325,7 +329,7 @@ discord.utils.get(ctx.guild.roles, name="Helper")]
       if rank == ranks[1]:
         await member.add_roles(roles[0], roles[1], reason=f"v!pair by {ctx.author}")
         await member.remove_roles(roles[2], roles[3])
-      if rank == ranks[2] or returnRank(user) == ranks[4]:
+      if rank == ranks[2] or await returnRank(user) == ranks[4]:
         await member.add_roles(roles[0], roles[2], reason=f"v!pair by {ctx.author}")
         await member.remove_roles(roles[1], roles[3])
       if rank == ranks[3]:
@@ -373,7 +377,7 @@ async def top(ctx):
     playerDict[item['uuid']] = total
   playerDict = sorted(playerDict.items(), key=lambda x: -x[1])[:10]
   for x in range(10):
-    embedStats.add_field(name=returnName(playerDict[x][0]),value=f"{playerDict[x][1]} GExp", inline=False)
+    embedStats.add_field(name=await returnName(playerDict[x][0]),value=f"{playerDict[x][1]} GExp", inline=False)
   await ctx.send(embed=embedStats)
 #prsaw
 pTalk = prsaw2.Client(key='Yfbjgiz58BIR')
@@ -414,8 +418,14 @@ async def ud(ctx, *, word):
 
   await ctx.send(f'Definition -\n{response.json()["list"][0]["definition"]}\n\nExamples -\n{response.json()["list"][0]["example"]}')
 @bot.command()
+async def uuid(ctx,ign=None):
+    await ctx.reply(await returnUUID(ign))
+@bot.command()
+async def ms(ctx,ign=None):
+    await ctx.reply(await returnMS(ign))   
+@bot.command()
 async def purge(ctx, amount=30):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     channel = ctx.message.channel
     messages = []
     async for message in channel.history(limit=amount + 1):
@@ -434,7 +444,7 @@ async def avatar(ctx, avamember : discord.Member=None):
 async def memall(ctx,boo=0):
   if boo == 0:
     await ctx.send("You did not confirm, cancelling")
-  elif boo == 1 and stcheck(ctx) is True:
+  elif boo == 1 and await stcheck(ctx) is True:
     member = discord.utils.get(ctx.guild.roles, name="Discord Member")
     await ctx.send("In Progress...")
     for user in ctx.guild.members:
@@ -483,40 +493,51 @@ async def stats(ctx, ign=None):
 
 @bot.command()
 async def printnerds(ctx, level:int=20, afk:int=2, xp:int=21000):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     await ctx.reply("Processing...")
     current_time = datetime.datetime.now() 
     async with aiohttp.ClientSession() as session:
       async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
-        x = resp.json()
+        x = await resp.json()
         members = x["guild"]["members"]
     nerdl = commands.Paginator()
     for member in members:
-      trash = False
-      try:
-        if int(returnLast(member["uuid"])) - current_time.day >= afk:
-          trash = True
-      except Exception as e:
-        #print(f"{e} at {returnName(member['uuid'])}, uuid = {member['uuid']}")
-        pass
-      try:
-        if int(await functions.returnLevel(returnName(member['uuid']))) < level:
-          trash = True
-      except Exception as e:
-        #print(f"{e} at {returnName(member['uuid'])}, uuid = {member['uuid']}")
-        pass
-      try:
-        xpHistory = []
-        for key, value in member["expHistory"].items():
-          xpHistory.append(value)
-        if sum(xpHistory[-7:]) < xp:
-          trash = True
-      except Exception as e:
-        print(f"{e} at {returnName(member['uuid'])}, uuid = {member['uuid']}")
-      if trash is True:
-        nerdl.add_line(returnName(member["uuid"]))
+      name = await returnName(member["uuid"])
+      if name not in await db.keys():
+        await db.set(f"{name}off",False)
+      if await db.get(f'{name}off') is not True:
+        trash = False
+        reason = []
+        try:
+          if int(await returnLast(member["uuid"])) - current_time.day >= afk:
+            trash = True
+            reason.append(f"Hasn't logged in in {afk} days.")
+        except Exception as e:
+          #print(f"{e} at {returnName(member['uuid'])}, uuid = {member['uuid']}")
+          pass
+        
+        try:
+          if int(await functions.returnLevel(await returnName(member['uuid']))) < level:
+            trash = True
+            reason.append(f"Is below level {level}.")
+        except Exception as e:
+          #print(f"{e} at {returnName(member['uuid'])}, uuid = {member['uuid']}")
+          pass
+        try:
+          xpHistory = []
+          for key, value in member["expHistory"].items():
+            xpHistory.append(value)
+          if sum(xpHistory[-7:]) < xp:
+            trash = True
+            reason.append(f"Hasn't got {xp} gexp in the past 7 days.")
+        except Exception as e:
+          print(f"{e} at {await returnName(member['uuid'])}, uuid = {member['uuid']}")
+        if trash is True:
+          nerdl.add_line(f'{name} - {reason}')
+        else:
+          continue
       else:
-        continue
+        continue 
     for page in nerdl.pages:
       await ctx.send(page)
     await ctx.send("Completed!")
@@ -525,53 +546,98 @@ async def printnerds(ctx, level:int=20, afk:int=2, xp:int=21000):
 @bot.listen('on_message')
 async def on_message(message):
   if int(message.author.id) != 866728186628407306:
-    for word in db["blacklist"]:
+    for word in await db.get("blacklist"):
       if word.lower() in message.content.lower():
         #warnuser(ctx)
         await message.delete()
         break
-    for word in db["triggers"]:
+    for word in await db.get("triggers"):
       if word.lower() in message.content.lower():
         if True:
-          await message.reply(db["triggers"].get(word), mention_author=False)
+          x=await db.get("triggers")
+          await message.reply(x.get(word), mention_author=False)
         break
+        '''
+@bot.command()
+async def offline(ctx, ign:str=None, reason:str=None, length:int=None):
+  if length is None:
+    await ctx.reply("Correct usage - `v!offline <mc_username> <reason> <number of days>`!")
+  elif reason is None:
+    await ctx.reply("Correct usage - `v!offline <mc_username> <reason> <number of days>`!")
+  elif await returnDiscord(ign) != str(ctx.author):
+    await ctx.reply(f"You need to connect your account to Hypixel to do this!")
+  elif length >= 7:
+    await ctx.reply("You can take upto 6 days of leave.")
+  else:
+    if ign in await db.keys():
+      profile = await db.get(ign)
+      profile["leave"] = {"on_leave":True,"l_length":length, "l_reason":reason,"time":datetime.datetime.now()}
+      await db.set(ign, profile)
+    else:
+      db.set(ign, {"leave":{"on_leave":True,"l_length":length, "l_reason":reason,"time":datetime.datetime.now()}, "blacklist":{"blacklisted":False, "reason":False}})
+      '''
+@bot.command()
+async def offline(ctx, arg=set):
+  if arg == "set":
+    if await returnMS(ctx.author.name) is True and await returnExistence(ctx.author.name) is True:
+      await db.set(f"{ctx.author.name}off", True)
+      await ctx.reply("Done!")
+    else:
+      await ctx.reply("You must be paired and in the guild to do this.")
+  elif arg == "back":
+    if await returnMS(ctx.author.name) is True and await returnExistence(ctx.author.name) is True:
+      await db.set(f"{ctx.author.name}off", False)
+      await ctx.reply("Done!")
+    else:
+      await ctx.reply("You must be paired and in the guild to do this.")
+@bot.command()
+async def foffline(ctx, ign):
+  if await stcheck(ctx) is True:
+    await db.set(f"{ign}off", True)
+    await ctx.reply("Done.")
 #Warn commands
 @bot.command(aliases=["w"])
 async def warn(ctx, user: discord.Member, *reason):
   if reason is None:
     await ctx.reply("Provide a reason \*\*\*\*\*\*\*.")
-  elif stcheck(ctx) is True:
+  elif await stcheck(ctx) is True:
     read_reason = ""
     for word in reason:
       read_reason = read_reason+" "+word
-    db[f"{user.id}warns"].append({read_reason:ctx.author.name})
+    warns1 = await db.get(f"{user.id}warns")
+    warns1.append({read_reason:ctx.author.name})
+    await db.set(f"{user.id}warns", warns1)
     await ctx.reply(f"Warned {user.name} for {read_reason}, run by {ctx.author.name}.")
   else:
     await ctx.reply("Get good, get staff.")
 @bot.command()
+async def last(ctx, ign=None):
+  await ctx.reply(f"{ign} has logged in {int(await returnLast(await returnUUID(ign))) - datetime.datetime.now().day} days ago.")
+@bot.command()
 async def delwarn(ctx, user: discord.Member, warn:int=None):
   if warn is None:
     await ctx.reply("You need to send a warn number.")
-  elif stcheck(ctx) is True:
+  elif await stcheck(ctx) is True:
     try:
-      db[f"{user.id}warns"].pop(warn)
+      await db[f"{user.id}warns"].pop(warn)
       await ctx.reply(f"Remved warn {warn} from {user.name}.")
     except:
       await ctx.reply("Warn not found.")
 @bot.command()
 async def warns(ctx, user:discord.Member):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     embedWarns = discord.Embed(title=f"{user.name}'s Warns")
-    for warn in db[f"{user.id}warns"]:
-      embedWarns.add_field(name=f"#{db[f'{user.id}warns'].index(warn)} - {list(warn.keys())[0]}", value=list(warn.values())[0])
+    bruh = await db.get(f'{user.id}warns')
+    for warn in await db.get(f"{user.id}warns"):
+      embedWarns.add_field(name=f"#{bruh.index(warn)} - {list(warn.keys())[0]}", value=list(warn.values())[0])
     await ctx.reply(embed=embedWarns)
   else:
     await ctx.reply("Get good, again, get staff.")
 @bot.command()
 async def resetwarn(ctx):
-  if stcheck(ctx) is True:
+  if await stcheck(ctx) is True:
     for user in ctx.guild.members:
-      db[f"{user.id}warns"] = []
+      await db.set(f"{user.id}warns",[])
     await ctx.reply("Done.")
   else:
     await ctx.reply("You aren't staff.")
@@ -581,21 +647,21 @@ async def staffRole(ctx, arg, rolement: discord.Role=712458500940496936):
     db["staffRole"] = rolement.name
     await ctx.send(f"I have set the staff role to {rolement}")
   elif arg=="view":
-    await ctx.reply(f"The staff role is {db['staffRole']}")
+    await ctx.reply(f"The staff role is {await db.get('staffRole')}")
   elif arg == "reset" and ctx.author.id == 562175882412687361 or ctx.author.id == ctx.guild.owner.id or ctx.author.guild_permissions.administrator is True:
-    db["staffRole"] = ""
+    await db.set("staffRole","")
     await ctx.reply("Reset the staff role.")
 @bot.command()
 async def blacklist(ctx, *opt):
   if opt[0] == "view":
-    await ctx.reply(embed=discord.Embed(title="Blacklisted Words", description=db["blacklist"]))
-  elif opt[0] == "add" and stcheck(ctx) is True:
-    db["blacklist"].append(opt[1].lower())
+    await ctx.reply(embed=discord.Embed(title="Blacklisted Words", description=await db.get("blacklist")))
+  elif opt[0] == "add" and await stcheck(ctx) is True:
+    await db["blacklist"].append(opt[1].lower())
     await ctx.reply(f"Added {opt[1]} to the swear list!", delete_after=5)
-  elif opt[0] == "reset" and stcheck(ctx) is True:
-    db["blacklist"] = []
+  elif opt[0] == "reset" and await stcheck(ctx) is True:
+    await db.set("blacklist",[])
     await ctx.reply("Created/Reset the swear list!", delete_after=5)
-  elif opt[0] == "delete" and stcheck(ctx) is True:
+  elif opt[0] == "delete" and await stcheck(ctx) is True:
     try:
       db["blacklist"].remove(opt[1].lower())
       await ctx.reply(f"Removed {opt[1]} from the swear list!", delete_after=5)
@@ -609,18 +675,24 @@ async def blacklist(ctx, *opt):
 async def triggers(ctx, *opt):
   if opt[0] == "view":
     trem = discord.Embed(title="Triggers", description="The triggers list")
-    for word in db["triggers"]:
-      trem.add_field(name=word, value=db["triggers"].get(word))
+    tlist = await db.get("triggers")
+    for word in await db.get("triggers"):
+      trem.add_field(name=word, value=tlist.get(word))
     await ctx.reply(embed=trem, delete_after=5)
-  elif opt[0] == "add" and stcheck(ctx) is True:
-    db["triggers"].update({opt[1]:opt[2]})
+  elif opt[0] == "add" and await stcheck(ctx) is True:
+    x = db.get("triggers")
+    x.update({opt[1]:opt[2]})
+    await db.set("triggers", x)
     await ctx.reply(f"Added {opt[1]} to the triggers list!", delete_after=5)
-  elif opt[0] == "reset" and stcheck(ctx) is True:
-    db["triggers"] = {}
+  elif opt[0] == "reset" and await stcheck(ctx) is True:
+    await db.set("triggers",{})
     await ctx.reply("Created/Reset the triggers list!", delete_after=5)
-  elif opt[0] == "delete" and stcheck(ctx) is True:
+  elif opt[0] == "delete" and await stcheck(ctx) is True:
     try:
-      del db["triggers"][opt[1]]
+      x = await db.get("triggers")
+      del x[opt[1]]
+      await db.set("triggers",x)
+
       await ctx.reply(f"Removed {opt[1]} from the triggers list!", delete_after=5)
     except:
       await ctx.reply("tf? that doesn't even exist.", delete_after=5)
