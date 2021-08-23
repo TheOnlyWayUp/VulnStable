@@ -1,7 +1,8 @@
 
 import requests
 import math
-API_KEY = "8db38b57-10ed-4c9b-9fea-cab0857529f5"
+import os
+API_KEY = os.environ["api"]
 async def returnUUID(ign=None):
   try:
     return requests.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}").json()["id"]
@@ -17,13 +18,6 @@ async def returnLevel(ign=None):
     if data is None:
         return 404
     return int(math.floor(1 + REVERSE_PQ_PREFIX + math.sqrt(REVERSE_CONST + GROWTH_DIVIDES_2 * int(data))))
-async def returnDiscord(ign=None):
-  try:
-    uuid = await returnUUID(ign)
-    return str(requests.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
-  except:
-    return "N/A"
-
 async def returnGuild(ign=None):
   try:
     uuid = await returnUUID(ign)

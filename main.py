@@ -1,10 +1,9 @@
 #Importing libraries
-import requests, discord, os, asyncio, prsaw2, shutil, datetime, random, aiohttp
+import requests, discord, os, asyncio, prsaw2, shutil, datetime, random, aiohttp, json, os
 from discord_interactive import Page, Help
 from PIL import Image, ImageFont, ImageDraw
 import imgfunctions as functions
 from replit.database import AsyncDatabase 
-import os
 from discord.ext import commands #Import stuff to make making commands easier
 from discord.ext.commands import CommandNotFound, MissingPermissions
 intents = discord.Intents.default()
@@ -15,6 +14,8 @@ bot.remove_command("help")
 bot.remove_command("restart")
 bot.remove_command("ping")
 dburl=os.environ["REPLIT_DB_URL"]
+key_of_the_api = os.environ["api"]
+token = os.environ["token"]
 db = AsyncDatabase(dburl)
 #Main Functions
 #Hug function
@@ -74,7 +75,7 @@ async def stcheck(ctx):
 #Returns last login
 async def returnLast(uuid:int):
   async with aiohttp.ClientSession() as session:
-    async with session.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}') as resp:
+    async with session.get(f'https://api.hypixel.net/player?key={key_of_the_api}&uuid={uuid}') as resp:
       x = await resp.json()
       last = x["player"]["lastLogin"]
   return datetime.datetime.utcfromtimestamp(int(last)/1000).strftime('%d')
@@ -82,7 +83,7 @@ async def returnLast(uuid:int):
 async def returnDiscord(ign=None):
   try:
     uuid = await returnUUID(ign)
-    return str(requests.get(f'https://api.hypixel.net/player?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
+    return str(requests.get(f'https://api.hypixel.net/player?key={key_of_the_api}&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
   except:
     return 404
 #Checks if a user is in the guild
@@ -90,7 +91,7 @@ async def returnMS(ign=None):
   uuid = await returnUUID(ign)
   try:
     async with aiohttp.ClientSession() as session:
-      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
+      async with session.get(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
         x = await resp.json()
         members = x["guild"]["members"]
     for member in members:
@@ -103,7 +104,7 @@ async def returnMS(ign=None):
 #Returns the rank of a user
 async def returnRank(ign=None):
      async with aiohttp.ClientSession() as session:
-             async with session.get("https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2") as resp:
+             async with session.get(f"https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2") as resp:
                      x = await resp.json()
                      y = x["guild"]["members"]
                      for user in y:
@@ -216,12 +217,12 @@ async def pair(ctx, user=None):
     disc = await returnDiscord(user)
     pairing(user, disc, ctx.author)
     ranks = ["Vulnerable","Active-Vuln","InVulnerable","Helpers"]
-    rank = await returnRank(user)
+    rank = await returnRank(user)  
     roles=[
   discord.utils.get(ctx.guild.roles, name="Guild member"),
   discord.utils.get(ctx.guild.roles, name="Active Guild Member"),
   discord.utils.get(ctx.guild.roles, name="Special Guild Member"),
-discord.utils.get(ctx.guild.roles, name="Helper")]  
+discord.utils.get(ctx.guild.roles, name="Helper")]
     if str(disc) == str(ctx.author):
       if rank == ranks[0]:
         await ctx.author.add_roles(roles[0], reason=f"v!pair by {ctx.author}")
@@ -242,11 +243,8 @@ discord.utils.get(ctx.guild.roles, name="Helper")]
         print(e)
         await ctx.send(embed=embedPairPartial)
     else:
-      try:
-        tutorial = await ctx.fetch_message(866971922109038603)
-        await tutorial.reply(embed=embedPairFailure, mention_author=False)
-      except:
         await ctx.reply(embed=embedPairFailure, mention_author=False)
+        await ctx.reply("Tutorial - <https://hypixel.net/threads/guide-how-to-link-discord-account.3315476/>", mention_author=False)
   else:
     await ctx.send("That Minecraft account doesn't exist!")
 #Invite command
@@ -272,7 +270,7 @@ async def hug(ctx, member: discord.Member=None, nick=None):
 #Resets or changes everyone's nickname
 @bot.command()
 async def nickReset(ctx, change=3, nock=None):
-  print(stcheck(ctx))
+  print(await stcheck(ctx))
   if change == 0 and await stcheck(ctx) is True:
     await ctx.send("Resetting all nicknames...")
     for user in ctx.guild.members:
@@ -299,7 +297,7 @@ async def nickReset(ctx, change=3, nock=None):
         continue
   elif change == 3:
     await ctx.send("Incorrect usage! `v!nickReset <0/1/2/3> [new_nickname]`")
-  elif stcheck(ctx) is False:
+  elif await stcheck(ctx) is False:
     await ctx.send("No permissions.")
 
 @bot.command()
@@ -365,7 +363,7 @@ async def top(ctx):
   data = requests.get(
   url = "https://api.hypixel.net/guild",
   params = {
-        "key": "8db38b57-10ed-4c9b-9fea-cab0857529f5",
+        "key": {key_of_the_api},
         "name": "Vuln" 
     }
 ).json()
@@ -404,7 +402,13 @@ async def close(ctx):
 @bot.command(aliases=["j","laugh"])
 async def joke(ctx):
   pJoke = prsaw2.Client(key='Yfbjgiz58BIR')
-  await ctx.send(f'||{pJoke.get_joke(type="any").joke}||')
+  jokebruh = pJoke.get_joke(type="any").joke
+  jokeson = json.loads(jokebruh)
+  if "setup" in joke.keys():
+    jem = discord.Embed(title=jokeson["setup"], description=jokeson["delivery"], color=discord.Colour.random())
+    await ctx.send(embed=jem)
+  else:
+    jem = discord.Embed(title=jokebruh, color=discord.Colour.random())
   pJoke.close()
 @bot.command(aliases=["dict","urban"])
 async def ud(ctx, *, word):
@@ -452,7 +456,7 @@ async def memall(ctx,boo=0):
     await ctx.send("Completed!")
   elif boo != 0 and boo != 1:
     await ctx.send("Please provide a valid output `v!memall <0/1>`")
-  elif stcheck(ctx) is False:
+  elif await stcheck(ctx) is False:
     await ctx.send("This command can only be run by staff!")
 @bot.command(aliases=["meaning","what", "def"])
 async def define(ctx, *, arg):
@@ -467,7 +471,7 @@ async def define(ctx, *, arg):
 async def stats(ctx, ign=None):
   if ign is not None:
     level = await functions.returnLevel(ign)
-    uuid = requests.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}").json()["id"]
+    uuid = await returnUUID(ign)
     url = f'https://crafatar.com/renders/body/{uuid}'
     response = requests.get(url, stream=True)
     with open('playerhead.png', 'wb') as out_file:
@@ -480,7 +484,7 @@ async def stats(ctx, ign=None):
     myFontSize = ImageFont.truetype('FreeMono.ttf', 55)
     I1.text((66, 79), f"{ign}'s Stats", font=myFont, fill =(0,255,42))
     I1.text((70, 193), f"Level - {level}", font=myFontSize, fill =(255,213,0))
-    I1.text((70, 259), f"Discord - {await functions.returnDiscord(ign)}", font=myFontSize, fill =(255,213,0))
+    I1.text((70, 259), f"Discord - {await returnDiscord(ign)}", font=myFontSize, fill =(255,213,0))
     I1.text((70, 318), f"Guild - {await functions.returnGuild(ign)}", font=myFontSize, fill =(255,213,0))
     background.paste(head, (1148, 123), mask = head)
     background.save("userstats.png")
@@ -497,7 +501,7 @@ async def printnerds(ctx, level:int=20, afk:int=2, xp:int=21000):
     await ctx.reply("Processing...")
     current_time = datetime.datetime.now() 
     async with aiohttp.ClientSession() as session:
-      async with session.get('https://api.hypixel.net/guild?key=8db38b57-10ed-4c9b-9fea-cab0857529f5&id=5e8c16788ea8c9ec75077ba2') as resp:
+      async with session.get(f'https://api.hypixel.net/guild?key=8{key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
         x = await resp.json()
         members = x["guild"]["members"]
     nerdl = commands.Paginator()
@@ -557,7 +561,18 @@ async def on_message(message):
           x=await db.get("triggers")
           await message.reply(x.get(word), mention_author=False)
         break
-        '''
+@bot.command()
+async def content(ctx, id:int=None):
+  if await stcheck(ctx) is True:
+    if id is None:
+      await ctx.reply("You need to provide a message ID!")
+    else:
+      msg = await ctx.channel.fetch_message(id)
+      await ctx.reply(msg)
+  else:
+    await ctx.reply("This is a staff only command!")
+
+'''
 @bot.command()
 async def offline(ctx, ign:str=None, reason:str=None, length:int=None):
   if length is None:
@@ -706,4 +721,13 @@ async def factorial(ctx,n:int):
 @bot.command()
 async def roleinfo(ctx, role:discord.Role):
   await ctx.reply(role)
-bot.run("ODY2NzI4MTg2NjI4NDA3MzA2.YPWxhg.incVHAgz0HsZ8OqZKRsghHk6fdo")
+@bot.command()
+async def api_check(ctx):
+  async with aiohttp.ClientSession() as session:
+    async with session.get(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
+      x = await resp.json()
+  if x["success"] is True:
+    await ctx.reply("Request successful.")
+  elif x["success"] is False:
+    await ctx.reply(f"Request failed, reason - {x['cause']}")
+bot.run(token)
