@@ -10,6 +10,10 @@ discord = "^1.7.3"
 prsaw2 = "^0.42"
 discord-interactive = "^4.0"
 replit = "^3.2.4"
+CairoSVG = "^2.5.2"
+pycairo = "^1.20.1"
+svglib = "^1.1.0"
+reportlab = "^3.6.1"
 
 [tool.poetry.dev-dependencies]
 

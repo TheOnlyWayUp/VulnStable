@@ -1,5 +1,7 @@
 #Importing libraries
-import requests, discord, os, asyncio, prsaw2, shutil, datetime, random, aiohttp, json, os
+import requests, discord, os, asyncio, prsaw2, shutil, datetime, random, aiohttp, json, os, string
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
 from discord_interactive import Page, Help
 from PIL import Image, ImageFont, ImageDraw
 import imgfunctions as functions
@@ -255,6 +257,22 @@ async def invite(ctx):
 @bot.command()
 async def website(ctx):
   await ctx.send("You can view our website at https://bit.ly/VULN. It would really mean a lot of you shared it!")
+#Random av command
+@bot.command()
+async def genav(ctx, seed=None):
+  if seed is None:
+    seed = random.sample(string.ascii_letters, 5)
+  async with aiohttp.ClientSession() as session:
+    async with session.get(f"https://avatars.dicebear.com/api/micah/{seed}.svg?mood[]=happy") as resp:
+      img_data = await resp.content.read()
+  with open('img.svg', 'wb') as handler:
+    handler.write(img_data)
+  drawing = svg2rlg('img.svg')
+  renderPM.drawToFile(drawing, 'img2.png', fmt='PNG')
+  with open("img2.png", "rb") as fh:
+    f = discord.File(fh, filename="av.png")
+  await ctx.reply(file=f)
+
 #Ping command
 @bot.command()
 async def ping(ctx):
