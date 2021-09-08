@@ -40,80 +40,69 @@ def factorialcalc(n):
   else:
     return n * factorialcalc(n - 1)
 #Gets the UUID of a user through their ign
-async def returnName(uuid=None):
-  try:
-    async with aiohttp.ClientSession() as session:
-      async with session.get(f"https://api.mojang.com/user/profile/{uuid}") as resp:
-        x= await resp.json()
-        return x["name"]
-      session.close
-  except:
-    return "`Name not found`"
-
+async def req(link):
+  async with aiohttp.ClientSession() as session:
+    async with session.get(link) as resp:
+      return await resp.json()
 async def returnUUID(ign=None):
+  resp = await req(f"https://api.mojang.com/users/profiles/minecraft/{ign}")
+  return resp["id"]
+async def returnName(uuid=None):
+  resp = await req(f"https://api.mojang.com/user/profile/{uuid}")
+  return resp["name"]
+async def returnLast(check=None, ty="name"):
+  if ty == "name":
+    check = await returnUUID(check)
+  elif ty == "uuid":
+    check = check
+  last = await req(f'https://api.hypixel.net/player?key={key_of_the_api}&uuid={check}')
+  return datetime.datetime.utcfromtimestamp(int(last["player"]["lastLogin"])/1000).strftime('%d')
+async def returnExistence(check=None, ty="name"):
+  if ty == "name":
+    try:
+      await req(f"https://api.mojang.com/users/profiles/minecraft/{check}")
+      return True
+    except:
+      return False
+async def returnDiscord(check=None, ty="name"):
+  if ty == "name":
+    check = await returnUUID(check)
+  elif ty == "uuid":
+    check = check
+  x= await req(f"https://api.hypixel.net/player?key={key_of_the_api}&uuid={check}")
   try:
-    async with aiohttp.ClientSession() as session:
-      async with session.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}") as resp:
-        x= await resp.json()
-        return x["id"]
+    return x["player"]["socialMedia"]["links"]["DISCORD"]
   except:
-    return "`UUID not found`"
-async def returnExistence(ign=None):
-  try:
-    async with aiohttp.ClientSession() as session:
-       async with session.get(f"https://api.mojang.com/users/profiles/minecraft/{ign}") as resp:
-         x = await resp.json()
-    return True
-  except:
-    return False
+    return 404
+async def returnMS(check=None, ty="name"):
+  members = await req(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2')
+  if ty == "name":
+    check = await returnUUID(check)
+  elif ty == "uuid":
+    check = check
+  for member in members["guild"]["members"]:
+    if check == member["uuid"]:
+      return True
+    else:
+      continue
+  return False
+async def returnRank(check=None, ty="name"):
+  members = await req(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2')
+  if ty == "name":
+    check = await returnUUID(check)
+  elif ty == "uuid":
+    check = check
+  for member in members["guild"]["members"]:
+    if member["uuid"] == check:
+      return member["rank"]
 #Return staff status of a user
 async def stcheck(ctx):
     role = discord.utils.get(ctx.guild.members, name=await db.get("staffRole"))
     roleasd = discord.utils.find(lambda r: r.name == "God Father", ctx.message.guild.roles)
-    if role in ctx.author.roles or str(ctx.author.id) == str(ctx.guild.owner.id) or roleasd in ctx.author.roles or ctx.author.guild_permissions.administrator is True or str(ctx.author.id) == str(562175882412687361):
+    if role in ctx.author.roles or str(ctx.author.id) == str(ctx.guild.owner.id) or roleasd in ctx.author.roles or ctx.author.guild_permissions.administrator is True or str(ctx.author.id) == str(562175882412687361) or str(ctx.author.id) == str(876055467678375998):
       return True
     else:
       return False
-#Returns last login
-async def returnLast(uuid:int):
-  async with aiohttp.ClientSession() as session:
-    async with session.get(f'https://api.hypixel.net/player?key={key_of_the_api}&uuid={uuid}') as resp:
-      x = await resp.json()
-      last = x["player"]["lastLogin"]
-  return datetime.datetime.utcfromtimestamp(int(last)/1000).strftime('%d')
-#Returns the Discord of a user
-async def returnDiscord(ign=None):
-  try:
-    uuid = await returnUUID(ign)
-    return str(requests.get(f'https://api.hypixel.net/player?key={key_of_the_api}&uuid={uuid}').json()["player"]["socialMedia"]["links"]["DISCORD"])
-  except:
-    return 404
-#Checks if a user is in the guild
-async def returnMS(ign=None):
-  uuid = await returnUUID(ign)
-  try:
-    async with aiohttp.ClientSession() as session:
-      async with session.get(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
-        x = await resp.json()
-        members = x["guild"]["members"]
-    for member in members:
-      if member["uuid"] == uuid:
-      	 return True
-      else:
-        continue
-  except:
-    return False
-#Returns the rank of a user
-async def returnRank(ign=None):
-     async with aiohttp.ClientSession() as session:
-             async with session.get(f"https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2") as resp:
-                     x = await resp.json()
-                     y = x["guild"]["members"]
-                     for user in y:
-                         #user = dict(user)
-                         if user["uuid"] == await returnUUID(ign):
-                             return user["rank"]
-
 #Embeds
 helpMain = Page("**VULN**\n\nWelcome to Vuln, this is its bot. You can click on the emojis below to navigate the help page :)")
 helpCommands = Page("**COMMANDS**\n\n`v!av` - Displays mentioned users avatar.\n`v!hug` - Hugs the mentioned user.\n`v!ping` - Shows the bots delay.\n`v!define <word>` - Finds the dictionary definition of a word.\n`v!ud <word` - Get the urban dictionary definition of a word.\n`v!meme` - Sends a meme.\n`v!joke` - Sends a joke (Could be nsfw).\n`v!s <sentence>` - Talk to an AI Chatbot\n`v!stop` - Close a user's chatbot session.\n`v!printnerds [level] [afk days] [gexp]` - Prints the list of people to kick, defaults to 20, 3, 21000.\n`v!pair <ign>` - Pair to this user (mc username)\n`v!forcepair <user> <ign>` - Forcepair a user to that username.\n`v!staffCheck` - Checks if you're staff.\n`v!getDiscord <mc_ign>` - Gets the user's discord if connected.\n`v!rank <ign>` - Get the user's rank in the guild\n`v!triggers <view/add/reset/remove> [<word to add/remove> <response to word>]` - Allows you to manage triggers.\n`v!blacklist <view/add/reset/delete> [<word to add/remove>]` - Adds a word to be blacklisted.\n`v!ignore <blacklist/triggers> <channel>` - Channels to ignore for triggers/blacklist.\n`v!warn <user> <reason>` - Warn a user.\n`v!resetwarns` - Clears all warns in the server.\n`v!delwarn <user> <number>` - Deletes a warn.\n`v!warns <user>` - Display all the warns of a user.")
@@ -216,7 +205,10 @@ async def staffCheck(ctx):
 async def pair(ctx, user=None):
   if await returnExistence(user) is True:
     dcRole = discord.utils.get(ctx.guild.roles, name="Discord Member")
-    disc = await returnDiscord(user)
+    try:
+      disc = await returnDiscord(user)
+    except:
+      await ctx.reply("You aren't linked to Hypixel.\nTutorial - <https://hypixel.net/threads/guide-how-to-link-discord-account.3315476/>", mention_author=False)
     pairing(user, disc, ctx.author)
     ranks = ["Vulnerable","Active-Vuln","InVulnerable","Helpers"]
     rank = await returnRank(user)  
@@ -329,7 +321,10 @@ async def meme(ctx):
 @bot.command()
 async def forcepair(ctx, member: discord.Member,user=None):
   if await stcheck(ctx) is True:
-    disc = await returnDiscord(user)
+    try:
+      disc = await returnDiscord(user)
+    except:
+      disc = "unpaired"
     rank = await returnRank(user)
     pairing(user, disc, ctx.author)
     ranks = ["Vulnerable","Active-Vuln","InVulnerable","Helpers","UnVulnerable"]
@@ -421,12 +416,14 @@ async def close(ctx):
 async def joke(ctx):
   pJoke = prsaw2.Client(key='Yfbjgiz58BIR')
   jokebruh = pJoke.get_joke(type="any").joke
-  jokeson = json.loads(jokebruh)
-  if "setup" in joke.keys():
-    jem = discord.Embed(title=jokeson["setup"], description=jokeson["delivery"], color=discord.Colour.random())
-    await ctx.send(embed=jem)
-  else:
+  jokeson = jokebruh
+  try:
+    if "setup" in jokeson.keys():
+      jem = discord.Embed(title=jokeson["setup"], description=jokeson["delivery"], color=discord.Colour.random())
+      await ctx.send(embed=jem)
+  except:
     jem = discord.Embed(title=jokebruh, color=discord.Colour.random())
+    await ctx.send(embed=jem)
   pJoke.close()
 @bot.command(aliases=["dict","urban"])
 async def ud(ctx, *, word):
@@ -713,7 +710,7 @@ async def triggers(ctx, *opt):
       trem.add_field(name=word, value=tlist.get(word))
     await ctx.reply(embed=trem, delete_after=5)
   elif opt[0] == "add" and await stcheck(ctx) is True:
-    x = db.get("triggers")
+    x = await db.get("triggers")
     x.update({opt[1]:opt[2]})
     await db.set("triggers", x)
     await ctx.reply(f"Added {opt[1]} to the triggers list!", delete_after=5)
@@ -729,7 +726,7 @@ async def triggers(ctx, *opt):
       await ctx.reply(f"Removed {opt[1]} from the triggers list!", delete_after=5)
     except:
       await ctx.reply("tf? that doesn't even exist.", delete_after=5)
-  elif opt[0] != "view" and stcheck(ctx) is False:
+  elif opt[0] != "view" and await stcheck(ctx) is False:
     await ctx.reply("This is a staff-only command.")
   await asyncio.sleep(5)
   await ctx.message.delete()
@@ -748,4 +745,13 @@ async def api_check(ctx):
     await ctx.reply("Request successful.")
   elif x["success"] is False:
     await ctx.reply(f"Request failed, reason - {x['cause']}")
-bot.run(token)
+import time
+def login(token):
+  try:
+    bot.run(token)    
+  except Exception as e:
+    e = str(e)
+    print(f"Couldn't login, Code - {e[0:3]}\n\n\nError -\n{e}\n\n")
+    time.sleep(900)
+    login(token)
+login(token)
