@@ -516,7 +516,7 @@ async def printnerds(ctx, level:int=20, afk:int=2, xp:int=21000):
     await ctx.reply("Processing...")
     current_time = datetime.datetime.now() 
     async with aiohttp.ClientSession() as session:
-      async with session.get(f'https://api.hypixel.net/guild?key=8{key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
+      async with session.get(f'https://api.hypixel.net/guild?key={key_of_the_api}&id=5e8c16788ea8c9ec75077ba2') as resp:
         x = await resp.json()
         members = x["guild"]["members"]
     nerdl = commands.Paginator()
